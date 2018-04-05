@@ -37,6 +37,7 @@
   ******************************************************************************
   */
 /* Includes ------------------------------------------------------------------*/
+#include "stdio.h"
 #include "main.h"
 #include "stm32f1xx_hal.h"
 
@@ -66,7 +67,32 @@ static void MX_USART1_UART_Init(void);
 
 /* USER CODE END 0 */
 
-u_int8_t Uart1RxBuffer[100];
+u_int8_t rx_buf[100];
+u_int32_t rx_idx = 0;
+u_int8_t rx_data[2];
+
+
+/* USER CODE BEGIN 1 */
+#ifdef __GNUC__
+/* With GCC/RAISONANCE, small printf (option LD Linker->Libraries->Small printf
+   set to 'Yes') calls __io_putchar() */
+#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
+#else
+#define PUTCHAR_PROTOTYPE int fputc(int ch, FILE *f)
+#endif /* __GNUC__ */
+/**
+  * @brief  Retargets the C library printf function to the USART.
+  * @param  None
+  * @retval None
+  */
+PUTCHAR_PROTOTYPE
+{
+    /* Place your implementation of fputc here */
+    /* e.g. write a character to the EVAL_COM1 and Loop until the end of transmission */
+    HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, 0xFFFF);
+
+    return ch;
+}
 
 /**
   * @brief  The application entry point.
@@ -99,14 +125,17 @@ int main(void)
     MX_GPIO_Init();
     MX_USART1_UART_Init();
 
-    if (HAL_UART_Receive_IT(&huart1, Uart1RxBuffer, 100) != HAL_OK) {
-        _Error_Handler(__FILE__, __LINE__);
-    }
+    while (HAL_UART_Receive_IT(&huart1, rx_data, 1) == HAL_OK);
 
     while (1)
     {
+        HAL_Delay(500);
+        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, RESET);
+        HAL_Delay(500);
+        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, SET);
 
-
+        char *ch = "heartbeat!\n";
+        printf(ch);
     }
     /* USER CODE END 3 */
 
@@ -186,17 +215,14 @@ static void MX_USART1_UART_Send(u_int8_t *data, u_int32_t length)
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *UartHandle)
 {
     if (UartHandle->Instance == USART1) {
-        MX_USART1_UART_Send(Uart1RxBuffer, 100);
-        u_int8_t ret;
-        do
-        {
-            ret = HAL_UART_Receive_IT(&huart1, Uart1RxBuffer, 100);
-        } while (ret != HAL_OK);
+        MX_USART1_UART_Send(rx_data, 1);
 
+        while (HAL_UART_Receive_IT(&huart1, rx_data, 1) == HAL_OK);
     }
 
 }
 
+/* USER CODE END 1 */
 /** Configure pins as 
         * Analog 
         * Input 
