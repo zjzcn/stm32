@@ -1,45 +1,13 @@
-
-/**
-  ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-  ** This notice applies to any and all portions of this file
-  * that are not between comment pairs USER CODE BEGIN and
-  * USER CODE END. Other portions of this file, whether 
-  * inserted by the user or by software development tools
-  * are owned by their respective copyright owners.
-  *
-  * COPYRIGHT(c) 2018 STMicroelectronics
-  *
-  * Redistribution and use in source and binary forms, with or without modification,
-  * are permitted provided that the following conditions are met:
-  *   1. Redistributions of source code must retain the above copyright notice,
-  *      this list of conditions and the following disclaimer.
-  *   2. Redistributions in binary form must reproduce the above copyright notice,
-  *      this list of conditions and the following disclaimer in the documentation
-  *      and/or other materials provided with the distribution.
-  *   3. Neither the name of STMicroelectronics nor the names of its contributors
-  *      may be used to endorse or promote products derived from this software
-  *      without specific prior written permission.
-  *
-  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-  * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-  * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-  * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-  * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-  * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-  *
-  ******************************************************************************
-  */
-/* Includes ------------------------------------------------------------------*/
 #include "stdio.h"
 #include "main.h"
 #include "stm32f1xx_hal.h"
+
+#include "FreeRTOS.h"
+#include "task.h"
+#include "queue.h"
+#include "list.h"
+#include "portable.h"
+#include "FreeRTOSConfig.h"
 
 /* USER CODE BEGIN Includes */
 
@@ -57,6 +25,7 @@ UART_HandleTypeDef huart1;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART1_UART_Init(void);
+void xPortSysTickHandler( void );
 
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
@@ -74,11 +43,41 @@ u_int8_t uart1_flag = 0;
 
 static void MX_USART1_UART_Send(u_int8_t *data, u_int32_t length);
 
-/**
-  * @brief  The application entry point.
-  *
-  * @retval None
-  */
+void redLed_Task(void *pvParameters)
+{
+    static u_int8_t state = 0;
+
+    while(1)
+    {
+        state = !state;
+        if (state == 0) {
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
+        } else {
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_RESET);
+        }
+        //(state = !state) == 1 ? (PB8= = 0) : (LED0 = 1);
+        HAL_Delay(1000);
+    }
+}
+
+
+void greenLed_Task(void *pvParameters)
+{
+    u_int8_t state = 0;
+
+    while(1)
+    {
+        if (state == 0) {
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET);
+            state = 1;
+        } else {
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_RESET);
+            state = 0;
+        }
+        HAL_Delay(500);
+    }
+}
+
 int main(void)
 {
     /* USER CODE BEGIN 1 */
@@ -103,25 +102,49 @@ int main(void)
 
     /* Initialize all configured peripherals */
     MX_GPIO_Init();
-    MX_USART1_UART_Init();
+    //MX_USART1_UART_Init();
 
-    while (HAL_UART_Receive_IT(&huart1, rx_data, 1) == HAL_OK);
+    //HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
+    //HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET);
 
-    while (1)
+//    xTaskCreate( redLed_Task, "LED1", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY+1, NULL);
+//    xTaskCreate( greenLed_Task, "LED2", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY+2, NULL );
+//
+//    vTaskStartScheduler();
+
+    u_int16_t abc = 0;
+
+    while(1)
     {
-        if (uart1_flag == 1) {
-            MX_USART1_UART_Send(rx_buf, rx_idx);
-            uart1_flag = 0;
-            rx_idx = 0;
+        if (abc == 0) {
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);
+            for(uint16_t i=0;i<100;i++)
+            {
+                ;
+            }
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);
+            for(uint16_t i=0;i<100;i++)
+            {
+                ;
+            }
+            //abc = 1;
+        }
+        else {
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);
+            abc = 0;
         }
         HAL_Delay(500);
-        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, RESET);
-        HAL_Delay(500);
-        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, SET);
-
     }
 
+    greenLed_Task(0);
+
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_RESET);
+
+    while(1);
 }
+
+
 
 static void MX_USART1_UART_Send(u_int8_t *data, u_int32_t length)
 {
@@ -140,6 +163,11 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *UartHandle)
         while (HAL_UART_Receive_IT(&huart1, rx_data, 1) == HAL_OK);
     }
 
+}
+
+void HAL_SYSTICK_Callback(void)
+{
+    xPortSysTickHandler();
 }
 
 /**
@@ -226,12 +254,12 @@ static void MX_GPIO_Init(void)
     __HAL_RCC_GPIOA_CLK_ENABLE();
 
     /*Configure GPIO pin Output Level */
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14|GPIO_PIN_12, GPIO_PIN_RESET);
 
     /*Configure GPIO pins : PB14 PB15 */
-    GPIO_InitStruct.Pin = GPIO_PIN_14|GPIO_PIN_15;
+    GPIO_InitStruct.Pin = GPIO_PIN_14|GPIO_PIN_12;
     GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
 }

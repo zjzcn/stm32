@@ -17,15 +17,17 @@ SET(CMAKE_CXX_FLAGS "${COMMON_FLAGS} -std=c++11")
 SET(CMAKE_C_FLAGS "${COMMON_FLAGS} -std=gnu99")
 SET(CMAKE_EXE_LINKER_FLAGS "-Wl,-gc-sections -T ${LINKER_SCRIPT}")
 
-add_definitions(-DSTM32F103xB)
+add_definitions(-DSTM32F103xE)
 
-file(GLOB_RECURSE SOURCES "startup/*.*" "Drivers/*.*" "Src/*.*")
+file(GLOB_RECURSE SOURCES "startup/*.*" "Drivers/*.*" "Src/*.*" "freertos/*.*" "freertos/portable/*.c")
 
 include_directories(Inc
         Drivers/STM32F1xx_HAL_Driver/Inc
         Drivers/STM32F1xx_HAL_Driver/Inc/Legacy
         Drivers/CMSIS/Device/ST/STM32F1xx/Include
-        Drivers/CMSIS/Include)
+        Drivers/CMSIS/Include
+        freertos/include
+        freertos/portable)
 
 add_executable(${PROJECT_NAME}.elf ${SOURCES} ${LINKER_SCRIPT})
 
