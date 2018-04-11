@@ -67,32 +67,12 @@ static void MX_USART1_UART_Init(void);
 
 /* USER CODE END 0 */
 
-u_int8_t rx_buf[100];
+u_int8_t rx_buf[128];
 u_int32_t rx_idx = 0;
-u_int8_t rx_data[2];
+u_int8_t rx_data[1];
+u_int8_t uart1_flag = 0;
 
-
-/* USER CODE BEGIN 1 */
-#ifdef __GNUC__
-/* With GCC/RAISONANCE, small printf (option LD Linker->Libraries->Small printf
-   set to 'Yes') calls __io_putchar() */
-#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
-#else
-#define PUTCHAR_PROTOTYPE int fputc(int ch, FILE *f)
-#endif /* __GNUC__ */
-/**
-  * @brief  Retargets the C library printf function to the USART.
-  * @param  None
-  * @retval None
-  */
-PUTCHAR_PROTOTYPE
-{
-    /* Place your implementation of fputc here */
-    /* e.g. write a character to the EVAL_COM1 and Loop until the end of transmission */
-    HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, 0xFFFF);
-
-    return ch;
-}
+static void MX_USART1_UART_Send(u_int8_t *data, u_int32_t length);
 
 /**
   * @brief  The application entry point.
@@ -129,15 +109,36 @@ int main(void)
 
     while (1)
     {
+        if (uart1_flag == 1) {
+            MX_USART1_UART_Send(rx_buf, rx_idx);
+            uart1_flag = 0;
+            rx_idx = 0;
+        }
         HAL_Delay(500);
         HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, RESET);
         HAL_Delay(500);
         HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, SET);
 
-        char *ch = "heartbeat!\n";
-        printf(ch);
     }
-    /* USER CODE END 3 */
+
+}
+
+static void MX_USART1_UART_Send(u_int8_t *data, u_int32_t length)
+{
+    HAL_UART_Transmit(&huart1, data, length, 0xFFFF) ;
+}
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *UartHandle)
+{
+    if (UartHandle->Instance == USART1) {
+        if (rx_data[0] == '\n') {
+            uart1_flag = 1;
+        }
+
+        rx_buf[rx_idx++] = rx_data[0];
+
+        while (HAL_UART_Receive_IT(&huart1, rx_data, 1) == HAL_OK);
+    }
 
 }
 
@@ -203,21 +204,6 @@ static void MX_USART1_UART_Init(void)
     if (HAL_UART_Init(&huart1) != HAL_OK)
     {
         _Error_Handler(__FILE__, __LINE__);
-    }
-
-}
-
-static void MX_USART1_UART_Send(u_int8_t *data, u_int32_t length)
-{
-    HAL_UART_Transmit(&huart1, data, length, 0xFFFF) ;
-}
-
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *UartHandle)
-{
-    if (UartHandle->Instance == USART1) {
-        MX_USART1_UART_Send(rx_data, 1);
-
-        while (HAL_UART_Receive_IT(&huart1, rx_data, 1) == HAL_OK);
     }
 
 }
